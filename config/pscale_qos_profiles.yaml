@@ -1,0 +1,83 @@
+# PowerScale Slurm QoS Profile Configuration
+# Maps Slurm QoS names to PowerScale SmartQoS settings.
+#
+# Slurm QoS names are defined via: sacctmgr add qos <name>
+# When a job runs with --qos=<name>, the matching profile below
+# is applied to the job's PowerScale scratch path.
+
+# PowerScale connection settings
+powerscale:
+  host: "powerscale.example.com"
+  port: 8080
+  username: "slurm_svc"
+  # Password from env var PSCALE_PASSWORD or file reference
+  password_file: "/etc/slurm/.pscale_password"
+  verify_ssl: false
+
+# SmartQoS dataset name (must be pre-created on the cluster)
+# Create with: isi performance datasets create --name slurm_qos export_id
+dataset_name: "slurm_qos"
+
+# Base path for per-job scratch directories
+scratch_base: "/ifs/scratch"
+
+# NFS export settings for per-job directories
+nfs_export:
+  map_root_user: "root"
+  security_flavors:
+    - "sys"
+    - "krb5"
+
+# SmartQuota settings for per-job directories
+quota:
+  # Default if not specified in profile
+  default_hard_limit_gb: 100
+  # Enable inode limits
+  enforce_inodes: false
+
+# QoS profiles -- keyed by Slurm QoS name
+profiles:
+
+  # High-priority AI training jobs
+  high:
+    description: "High-priority AI training -- maximum throughput"
+    protocol_ops_limit: 0          # 0 = unlimited (no throttle)
+    bandwidth_limit_mbps: 0        # 0 = unlimited (no BW cap)
+    quota_hard_limit_gb: 500
+    quota_soft_limit_gb: 400
+    # Additional NFS export overrides (optional)
+    nfs_overrides:
+      read_transfer_max_size: 1048576  # 1MB reads
+      write_transfer_max_size: 1048576 # 1MB writes
+
+  # Normal batch jobs
+  normal:
+    description: "Standard batch workloads"
+    protocol_ops_limit: 100000     # 100K ops/sec ceiling
+    bandwidth_limit_mbps: 5000     # 5 GB/s BW ceiling
+    quota_hard_limit_gb: 100
+    quota_soft_limit_gb: 80
+
+  # Low-priority / best-effort jobs
+  low:
+    description: "Best-effort, throttled to protect other workloads"
+    protocol_ops_limit: 20000      # 20K ops/sec ceiling
+    bandwidth_limit_mbps: 1000     # 1 GB/s BW ceiling
+    quota_hard_limit_gb: 50
+    quota_soft_limit_gb: 40
+
+  # Interactive / debug sessions
+  interactive:
+    description: "Short interactive sessions"
+    protocol_ops_limit: 50000      # 50K ops/sec
+    bandwidth_limit_mbps: 2000     # 2 GB/s BW ceiling
+    quota_hard_limit_gb: 20
+    quota_soft_limit_gb: 15
+
+  # Default fallback if Slurm QoS name has no matching profile
+  _default:
+    description: "Fallback profile for unmapped QoS names"
+    protocol_ops_limit: 50000
+    bandwidth_limit_mbps: 2000
+    quota_hard_limit_gb: 100
+    quota_soft_limit_gb: 80
